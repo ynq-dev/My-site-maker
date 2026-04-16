@@ -81,9 +81,25 @@ input:focus, textarea:focus, select:focus { border-color:var(--accent); }
 /* Draggable Elements */
 .draggable { position:absolute!important; z-index:100; touch-action:none; display:flex; align-items:center; justify-content:center; box-sizing:border-box; pointer-events:auto; left:0; top:0; border-radius:4px; transition: border 0.1s, background 0.1s; }
 
+/* size auto */
+.content, .content-wrap {
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+}
+
 /* Improve Grip (Show border & bg) */
+.edit-resize .draggable > *:not(.del-btn) {
+    pointer-events: none !important;
+}
+
 .edit-move .draggable, .edit-resize .draggable {
     /* Transparent barrier */
+    background: rgba(255, 255, 255, 0.01) !important; 
+    border: none !important;
+}
+
+/* Bring hovered element to front */
     background: rgba(255, 255, 255, 0.01) !important; 
     border: none !important;
 }
@@ -714,7 +730,7 @@ window.addObj = function(type, offsetY=0, offsetX=0, val='', assetName='') {
     else if(type==='speech') { div.style.width='160px'; div.style.height='70px'; inner=`<div class="content-wrap" style="position:relative; background:rgba(255,255,255,0.15); border-radius:30px; padding:15px; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(10px);"><div class="content" style="color:#fff; font-size:14px; font-weight:bold; text-align:center;">Hello!</div><div class="speech-tail speech-tail-bottom" style="--speech-color: rgba(255,255,255,0.15);"></div></div>`; }
     else if(type==='name') { inner = `<div class="content" style="font-size:24px; font-weight:bold; color:#fff; display:flex; align-items:center; justify-content:center;">User Name</div>`; }
     else if(type==='userid') { div.style.width='150px'; div.style.height='50px'; inner = `<div class="content" style="font-size:20px; color:#aaa; display:flex; align-items:center; justify-content:center;">@userid</div>`; }
-    else if(type==='avatar') { div.style.width='105px'; div.style.height='105px'; inner=`<div class="avatar-wrap content-wrap" style="border-radius:50%; background:rgba(255,255,255,0.04); backdrop-filter:blur(20px); border:1.5px solid rgba(255,255,255,0.2); padding:4px; box-sizing:border-box; display:flex; justify-content:center; align-items:center; overflow:hidden;"><img class="content avatar-img" src="${assets.avatar||'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs='}" style="width:100%; height:100%; border-radius:inherit; object-fit:cover; display:block;"></div>`; }
+    else if(type==='avatar') { div.style.width='105px'; div.style.height='105px'; inner=`<div class="avatar-wrap content-wrap" style="width:100%; height:100%; border-radius:50%; background:rgba(255,255,255,0.04); backdrop-filter:blur(20px); border:1.5px solid rgba(255,255,255,0.2); padding:4px; box-sizing:border-box; display:flex; justify-content:center; align-items:center; overflow:hidden;"><img class="content avatar-img" draggable="false" src="${assets.avatar||'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs='}" style="width:100%; height:100%; border-radius:inherit; object-fit:cover; display:block;"></div>`; }
     else if(type==='about') { div.style.width='320px'; div.style.height='120px'; inner=`<div class="content-wrap" style="background:rgba(255,255,255,0.08); backdrop-filter:blur(20px); border:1px solid rgba(255,255,255,0.15); border-radius:16px; padding:15px; display:flex; flex-direction:column;"><div style="font-size:11px; font-weight:bold; color:var(--accent); margin-bottom:8px;">ABOUT</div><div class="content" style="font-size:13px; color:#ccc;">Bio text here...</div></div>`; }
     else if(type==='button') { inner=`<button class="content btn-ui" style="background:var(--accent); color:#fff; border-radius:8px; font-size:16px;">Button</button>`; }
     else if(type==='social') { div.style.width='50px'; div.style.height='50px'; div.dataset.icon='github'; inner=`<div class="content-wrap" style="background:rgba(255,255,255,0.1); border-radius:12px; display:flex; align-items:center; justify-content:center; padding:12px; box-sizing:border-box;"><img class="content" src="https://cdn.simpleicons.org/github/white" style="width:100%; height:100%; object-fit:contain;"></div>`; }
@@ -809,17 +825,26 @@ function setupInteract(el) {
             end(){ setTimeout(()=>isDragging = false, 50); saveGenState(); }
         }
     }).resizable({
-        edges:{left:true,right:true,bottom:true,top:true},
-        modifiers:[ interact.modifiers.restrictSize({min:{width:20,height:20}}) ],
+        edges: {left:true, right:true, bottom:true, top:true},
+        modifiers: [ interact.modifiers.restrictSize({min:{width:20,height:20}}) ],
         listeners: {
             start(e){if(mode!=='resize')return false; isDragging = true;},
             move(e){ 
                 if(mode!=='resize')return; 
                 let sc = getActualScale();
-                let newW = e.rect.width/sc, newH = e.rect.height/sc;
-                el.style.width=newW+'px'; el.style.height=newH+'px'; 
-                
+                let newW = e.rect.width/sc;
+                let newH = e.rect.height/sc;
                 const type = el.dataset.type;
+                
+                if(['avatar', 'image', 'social', 'mute'].includes(type)) {
+                    let size = Math.max(newW, newH);
+                    newW = size;
+                    newH = size;
+                }
+                
+                el.style.width = newW + 'px'; 
+                el.style.height = newH + 'px'; 
+                
                 const c = el.querySelector('.content');
                 if(c && ['text', 'typing', 'name', 'userid', 'button', 'clock', 'marquee', 'mute', 'speech'].includes(type)) {
                     let fs = Math.max(10, newH * 0.45);
@@ -827,10 +852,6 @@ function setupInteract(el) {
                     if(activeEl === el) document.getElementById('pe-fs').value = Math.round(fs);
                 }
 
-                let x = (parseFloat(el.dataset.x)||0) + (e.deltaRect.left/sc);
-                let y = (parseFloat(el.dataset.y)||0) + (e.deltaRect.top/sc);
-                el.dataset.x = x; el.dataset.y = y; 
-                el.style.transform = `translate(calc(-50% + ${x}px), calc(-50% + ${y}px)) rotate(${el.dataset.rot||0}deg)`; 
             },
             end(){ setTimeout(()=>isDragging = false, 50); saveGenState(); }
         }
