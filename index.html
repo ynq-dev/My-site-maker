@@ -73,33 +73,32 @@ input:focus, textarea:focus, select:focus { border-color:var(--accent); }
 #effect-canvas { position:absolute; inset:0; pointer-events:none; z-index:3; width:100%; height:100%; transform: translateZ(0); will-change: transform; }
 #elements-layer { position:absolute; inset:0; z-index:10; width:100%; height:100%; pointer-events:auto; transform: translateZ(0); }
 
-/* Disable animations in editor */
+/* Disable animations in editor (ドラッグバグ修正) */
 #elements-layer .anim-fadeIn, #elements-layer .anim-bounce, #elements-layer .anim-pulse, #elements-layer .anim-shake, #elements-layer .anim-float {
-    animation: none !important; opacity: 1 !important; transform: none !important;
+    animation: none !important; opacity: 1 !important; 
 }
 
 /* Draggable Elements */
 .draggable { position:absolute!important; z-index:100; touch-action:none; display:flex; align-items:center; justify-content:center; box-sizing:border-box; pointer-events:auto; left:0; top:0; border-radius:4px; transition: border 0.1s, background 0.1s; }
 
-/* size auto */
-.content, .content-wrap {
-    width: 100%;
-    height: 100%;
-    box-sizing: border-box;
+/* サイズ自動調整 (タイピングのズレ修正版) */
+.content-wrap {
+    width: 100%; height: 100%;
+    display: flex; align-items: center; justify-content: center; box-sizing: border-box;
+}
+img.content, iframe.content, canvas.content, .avatar-wrap {
+    width: 100%; height: 100%; object-fit: cover;
 }
 
 /* Improve Grip (Show border & bg) */
+.edit-move .draggable > *:not(.del-btn),
 .edit-resize .draggable > *:not(.del-btn) {
+    /* 中のテキストや画像がマウス操作を邪魔しないようにする */
     pointer-events: none !important;
 }
 
 .edit-move .draggable, .edit-resize .draggable {
-    /* Transparent barrier */
-    background: rgba(255, 255, 255, 0.01) !important; 
-    border: none !important;
-}
-
-/* Bring hovered element to front */
+    /* 枠内全体に「透明な板」を張り、余白のどこをクリックしても掴めるようにする */
     background: rgba(255, 255, 255, 0.01) !important; 
     border: none !important;
 }
@@ -327,6 +326,19 @@ input:focus, textarea:focus, select:focus { border-color:var(--accent); }
                 </div>
             </div>
 
+            <div id="pe-about-opt" style="display:none; background:rgba(255,255,255,0.05); padding:8px; border-radius:5px; margin-bottom:8px;">
+                <div class="field"><label>ABOUTの位置 (Position)</label>
+                    <select id="pe-about-pos" onchange="applyProp()">
+                        <option value="flex-start_left">左上 (Top Left)</option>
+                        <option value="flex-start_center">上中央 (Top Center)</option>
+                        <option value="flex-start_right">右上 (Top Right)</option>
+                        <option value="flex-end_right">右下 (Bottom Right)</option>
+                        <option value="flex-end_left">左下 (Bottom Left)</option>
+                        <option value="center_center">中央 (Center)</option>
+                    </select>
+                </div>
+            </div>
+
             <div class="prop-grid">
                 <div class="field"><label>背景スタイル</label>
                     <select id="pe-bg-style" onchange="applyProp()">
@@ -451,7 +463,6 @@ let isDragging = false;
 const effCanvas = document.getElementById('effect-canvas'), effCtx = effCanvas.getContext('2d');
 
 window.addEventListener('load', () => {
-    // Animate subtitle after 1.9s
     setTimeout(() => {
         const sub = document.getElementById('loader-sub');
         if (sub) {
@@ -459,7 +470,6 @@ window.addEventListener('load', () => {
         }
     }, 1900);
 
-    // Fade out loading screen after 2.5s
     setTimeout(() => {
         const loader = document.getElementById('loading-screen');
         if(loader) {
@@ -473,14 +483,12 @@ window.addEventListener('load', () => {
     toggleBG(); 
     document.getElementById('v-pc').click();
     
-    // Initial Layout
     initDefaultLayout();
 });
 
 window.initDefaultLayout = function() {
     document.getElementById('elements-layer').innerHTML = '';
     
-    // Relative coordinates from center (0,0)
     addObj('avatar', -180, 0);
     addObj('typing', -60, 0);
     addObj('name', 0, 0);
@@ -515,7 +523,6 @@ window.switchTab = function(id) {
     document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
     document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
     event.target.classList.add('active'); document.getElementById(id).classList.add('active');
-    // Close properties on tab switch
     closeEditor(); 
 };
 window.setMode = function(m) {
@@ -583,14 +590,12 @@ window.uploadGlobal = function(e, type) {
             window.currentBgm = new Audio(assets.bgm); 
             window.currentBgm.loop = true; 
             
-            // Auto-play unmuted in generator
             isMuted = false; 
             window.currentBgm.muted = isMuted;
             window.currentBgm.play().catch(err => console.log("Auto-play blocked:", err));
             
             addObj('mute', 0, 0); 
             setTimeout(() => {
-                // Set volume icon to active initially
                 document.querySelectorAll('.mute-trigger').forEach(b => { b.innerHTML = '<i class="fas fa-volume-up"></i>'; });
             }, 100);
         }
@@ -726,12 +731,12 @@ window.addObj = function(type, offsetY=0, offsetX=0, val='', assetName='') {
     let inner = '';
     
     if(type==='text') { inner = `<div class="content" style="font-size:24px; font-weight:bold; color:#fff; display:flex; align-items:center; justify-content:center; text-align:center;">TEXT</div>`; }
-    else if(type==='typing') { div.style.width='250px'; div.dataset.text="Typing Effect"; div.dataset.spd="100"; div.dataset.loop="false"; inner=`<div class="content-wrap" style="display:flex; align-items:center; justify-content:center;"><div class="content" style="font-size:24px; font-weight:700; font-family:'JetBrains Mono'; color:#fff; white-space:pre-wrap;"></div></div>`; }
+    else if(type==='typing') { div.style.width='250px'; div.dataset.text="Typing Effect"; div.dataset.spd="100"; div.dataset.loop="false"; inner=`<div class="content-wrap" style="display:flex; align-items:center; justify-content:center; overflow:hidden;"><div class="content" style="font-size:24px; font-weight:700; font-family:'JetBrains Mono'; color:#fff; white-space:nowrap;"></div></div>`; }
     else if(type==='speech') { div.style.width='160px'; div.style.height='70px'; inner=`<div class="content-wrap" style="position:relative; background:rgba(255,255,255,0.15); border-radius:30px; padding:15px; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(10px);"><div class="content" style="color:#fff; font-size:14px; font-weight:bold; text-align:center;">Hello!</div><div class="speech-tail speech-tail-bottom" style="--speech-color: rgba(255,255,255,0.15);"></div></div>`; }
     else if(type==='name') { inner = `<div class="content" style="font-size:24px; font-weight:bold; color:#fff; display:flex; align-items:center; justify-content:center;">User Name</div>`; }
     else if(type==='userid') { div.style.width='150px'; div.style.height='50px'; inner = `<div class="content" style="font-size:20px; color:#aaa; display:flex; align-items:center; justify-content:center;">@userid</div>`; }
     else if(type==='avatar') { div.style.width='105px'; div.style.height='105px'; inner=`<div class="avatar-wrap content-wrap" style="width:100%; height:100%; border-radius:50%; background:rgba(255,255,255,0.04); backdrop-filter:blur(20px); border:1.5px solid rgba(255,255,255,0.2); padding:4px; box-sizing:border-box; display:flex; justify-content:center; align-items:center; overflow:hidden;"><img class="content avatar-img" draggable="false" src="${assets.avatar||'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs='}" style="width:100%; height:100%; border-radius:inherit; object-fit:cover; display:block;"></div>`; }
-    else if(type==='about') { div.style.width='320px'; div.style.height='120px'; inner=`<div class="content-wrap" style="background:rgba(255,255,255,0.08); backdrop-filter:blur(20px); border:1px solid rgba(255,255,255,0.15); border-radius:16px; padding:15px; display:flex; flex-direction:column;"><div style="font-size:11px; font-weight:bold; color:var(--accent); margin-bottom:8px;">ABOUT</div><div class="content" style="font-size:13px; color:#ccc;">Bio text here...</div></div>`; }
+    else if(type==='about') { div.style.width='320px'; div.style.height='120px'; inner=`<div class="content-wrap" style="background:rgba(255,255,255,0.08); backdrop-filter:blur(20px); border:1px solid rgba(255,255,255,0.15); border-radius:16px; padding:15px; display:flex; flex-direction:column; justify-content:flex-start;"><div class="about-title" style="font-size:11px; font-weight:bold; color:var(--accent); margin-bottom:8px; width:100%; text-align:left;">ABOUT</div><div class="content" style="font-size:13px; color:#ccc; width:100%;">Bio text here...</div></div>`; }
     else if(type==='button') { inner=`<button class="content btn-ui" style="background:var(--accent); color:#fff; border-radius:8px; font-size:16px;">Button</button>`; }
     else if(type==='social') { div.style.width='50px'; div.style.height='50px'; div.dataset.icon='github'; inner=`<div class="content-wrap" style="background:rgba(255,255,255,0.1); border-radius:12px; display:flex; align-items:center; justify-content:center; padding:12px; box-sizing:border-box;"><img class="content" src="https://cdn.simpleicons.org/github/white" style="width:100%; height:100%; object-fit:contain;"></div>`; }
     else if(type==='image') { div.style.width='100px'; div.style.height='100px'; if(assetName) div.dataset.asset=assetName; inner=`<div class="content-wrap" style="border-radius:8px; overflow:hidden;"><img class="content" src="${val}" style="border-radius:inherit; object-fit:cover; width:100%; height:100%; display:block;"></div>`; }
@@ -756,7 +761,6 @@ window.resetAll = function() {
     }
     isMuted = true;
     
-    // Completely empty the elements layer
     document.getElementById('elements-layer').innerHTML = '';
     assets = {bg:'', avatar:'', bgm:''}; objAssets = {};
     document.getElementById('g-bg-toggle').checked = true; toggleBG();
@@ -826,7 +830,7 @@ function setupInteract(el) {
         }
     }).resizable({
         edges: {left:true, right:true, bottom:true, top:true},
-        margin: 25,
+        margin: 15, 
         modifiers: [ interact.modifiers.restrictSize({min:{width:20,height:20}}) ],
         listeners: {
             start(e){if(mode!=='resize')return false; isDragging = true;},
@@ -852,7 +856,6 @@ function setupInteract(el) {
                     c.style.fontSize = fs + 'px';
                     if(activeEl === el) document.getElementById('pe-fs').value = Math.round(fs);
                 }
-
             },
             end(){ setTimeout(()=>isDragging = false, 50); saveGenState(); }
         }
@@ -871,6 +874,15 @@ window.openEditor = function(el) {
     
     document.getElementById('pe-speech-opt').style.display=type==='speech'?'block':'none';
     if(type==='speech') document.getElementById('pe-speech-dir').value = el.dataset.speechdir || 'bottom';
+
+    document.getElementById('pe-about-opt').style.display = type === 'about' ? 'block' : 'none';
+    if(type === 'about') {
+        const title = el.querySelector('.about-title');
+        const wrap = el.querySelector('.content-wrap');
+        if(title && wrap) {
+            document.getElementById('pe-about-pos').value = (wrap.style.justifyContent || 'flex-start') + '_' + (title.style.textAlign || 'left');
+        }
+    }
 
     if(type==='typing') {
         document.getElementById('pe-text').value = (el.dataset.text||"").replace(/\\n/g,'\n');
@@ -938,6 +950,16 @@ window.applyProp = function() {
         }
     }
 
+    if(type === 'about') {
+        const pos = document.getElementById('pe-about-pos').value.split('_');
+        const wrap = activeEl.querySelector('.content-wrap');
+        const title = activeEl.querySelector('.about-title');
+        if(wrap && title) {
+            wrap.style.justifyContent = pos[0];
+            title.style.textAlign = pos[1];
+        }
+    }
+
     const shadow = document.getElementById('pe-shadow').value;
     if(c && !['glass','divider'].includes(type)) {
         c.style.color = document.getElementById('pe-col').value;
@@ -963,8 +985,10 @@ window.applyProp = function() {
     else if(['text','name','userid','marquee','about','speech'].includes(type) && c) { c.innerHTML = txt.replace(/\n/g,'<br>'); }
     
     const anim = document.getElementById('pe-anim').value;
-    activeEl.classList.remove('anim-fadeIn', 'anim-bounce', 'anim-pulse', 'anim-shake', 'anim-float');
-    if(anim) activeEl.classList.add(anim);
+    const animTarget = cw || c || activeEl;
+    animTarget.classList.remove('anim-fadeIn', 'anim-bounce', 'anim-pulse', 'anim-shake', 'anim-float');
+    if(anim) animTarget.classList.add(anim);
+    
     activeEl.classList.toggle('rainbow-text', document.getElementById('pe-rainbow').checked);
 };
 window.closeEditor = function() { document.getElementById('comp-editor').style.display='none'; activeEl=null; saveGenState(); };
