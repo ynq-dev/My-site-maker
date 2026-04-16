@@ -475,20 +475,20 @@ window.initDefaultLayout = function() {
     
     setTimeout(() => {
         const types = document.querySelectorAll('[data-type="typing"]');
-        if(types.length > 0) { types[0].dataset.text = "Welcome\\nYour Space"; runTyping(types[0]); }
+        if(types.length > 0) { types[0].dataset.text = "Welocome!"; runTyping(types[0]); }
         
         const names = document.querySelectorAll('[data-type="name"] .content');
-        if(names.length > 0) names[0].innerText = "User Name";
+        if(names.length > 0) names[0].innerText = "Display name Name";
         
         const ids = document.querySelectorAll('[data-type="userid"] .content');
-        if(ids.length > 0) ids[0].innerText = "@userid";
+        if(ids.length > 0) ids[0].innerText = "@Userid";
         
         const abouts = document.querySelectorAll('[data-type="about"] .content');
-        if(abouts.length > 0) abouts[0].innerHTML = "I like coding < 3<br>@Developer Python / Java / c# / c+<br>@game valorant / Minecraft / roblox";
+        if(abouts.length > 0) abouts[0].innerHTML = "Typing...";
         
         const projs = document.querySelectorAll('[data-type="projects"]');
         if(projs.length > 0) {
-            projs[0].querySelector('.project-list').innerHTML = `<a href="https://discord.com/oauth2/authorize?client_id=1488091231555682374" class="project-btn content-link" onclick="return false;">VALORANT BOT</a><a href="#" class="project-btn content-link" onclick="return false;">Html Site Maker</a>`;
+            projs[0].querySelector('.project-list').innerHTML = `<a href="https://discord.com/oauth2/authorize?client_id=1488091231555682374" class="project-btn content-link" onclick="return false;">Project</a><a href="#" class="project-btn content-link" onclick="return false;">Project</a>`;
         }
         saveGenState();
     }, 100);
