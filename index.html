@@ -826,6 +826,7 @@ function setupInteract(el) {
         }
     }).resizable({
         edges: {left:true, right:true, bottom:true, top:true},
+        margin: 25,
         modifiers: [ interact.modifiers.restrictSize({min:{width:20,height:20}}) ],
         listeners: {
             start(e){if(mode!=='resize')return false; isDragging = true;},
