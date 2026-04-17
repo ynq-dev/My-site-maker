@@ -235,7 +235,7 @@ img.content, iframe.content, canvas.content, .avatar-wrap {
 
         <div id="tab-media" class="tab-content">
             <div class="field"><label>背景 (Background)</label><input type="file" accept="image/*" onchange="uploadGlobal(event, 'bg')"></div>
-            <div class="field"><label>アバター (avater)</label><input type="file" accept="image/*" onchange="uploadGlobal(event, 'avatar')"></div>
+            <div class="field"><label>アバター (Avatar)</label><input type="file" accept="image/*" onchange="uploadGlobal(event, 'avatar')"></div>
             <div class="field"><label>音楽 (BGM)</label><input type="file" accept="audio/*" onchange="uploadGlobal(event, 'bgm')"></div>
         </div>
 
@@ -408,20 +408,14 @@ img.content, iframe.content, canvas.content, .avatar-wrap {
 <div style="font-size:12px; line-height:1.6; color:#ccc; background:#080808; padding:15px; border-radius:8px; border:1px solid #333; max-height:400px; overflow-y:auto;">
     <h3 style="color:#fff; border-bottom:1px solid #444; padding-bottom:5px;">🚀使い方</h3>
     <ul style="padding-left:20px;">
-        <li><b>PCでの使用を目的としたサイトです。スマートフォンでの最適化はされていません。
-        <li><b>配置:</b> 「追加」タブから要素を選び、キャンバス上でドラッグして配置します。</li>
-        <li><b>編集:</b> 要素をクリックするとプロパティパネルが開き、色やアニメーションを変更できます。</li>
+        <li><b>まとめて操作:</b> Shiftキーを押しながらクリックで複数選択、まとめて移動・コピーができます。</li>
+        <li><b>スナップ機能:</b> 🧲ボタンをオンにすると、ドラッグ移動時やサイズ変更時に背景の線に合わせてピタッと配置されます。</li>
         <li><b>スマホ対応:</b> スマホ表示モードで 9:16 のレイアウトを確認しながら作成してください。</li>
-        <li><b>Discord連携:</b> Lanyard APIを使用し、リアルタイムの活動を表示できます。</li>
-        <li><b>出力:</b> 完成したら「ZIP書き出し」をクリックして、一式を保存しましょう。</li>
+        <li><b>出力:</b> 完成したら「ZIP形式で書き出し」をクリックして一式を保存しましょう。</li>
     </ul>
 
     <h3 style="color:#fff; border-bottom:1px solid #444; padding-bottom:5px; margin-top:20px;">⚖️ ライセンス (MIT License)</h3>
     <p>Copyright (c) 2026 <b>ynq3 / yuuna</b></p>
-    <p>
-        本ツールで作成されたサイトは自由に使用・公開・商用利用可能です。<br>
-        ツールのソースコードの改変・再配布も自由ですが、本ツールの使用によるいかなる損害についても作者は責任を負いません。
-    </p>
 </div>
 
 <script>
@@ -431,7 +425,7 @@ let activeEl = null;
 let copiedEls = []; 
 let isMuted = true;
 window.currentBgm = null;
-window.isSnapEnabled = false; 
+window.isSnapEnabled = false;
 
 let particles = [], genHistory = [], genRedoStack = [], exportCooldown = false;
 let assets = { bg: '', avatar: '', bgm: '' }, objAssets = {};
@@ -474,6 +468,7 @@ window.addEventListener('load', () => {
 window.initDefaultLayout = function() {
     document.getElementById('elements-layer').innerHTML = '';
     
+    /* Relative coordinates from center (0,0) */
     addObj('avatar', -180, 0);
     addObj('typing', -60, 0);
     addObj('name', 0, 0);
@@ -508,6 +503,7 @@ window.switchTab = function(id) {
     document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
     document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
     event.target.classList.add('active'); document.getElementById(id).classList.add('active');
+    /* Close properties on tab switch */
     closeEditor(); 
 };
 
@@ -519,6 +515,7 @@ window.setMode = function(m) {
     document.getElementById(`m-${m}`).classList.add('mode-active');
 };
 
+/* Snap Toggle */
 window.toggleSnap = function() {
     window.isSnapEnabled = !window.isSnapEnabled;
     const btn = document.getElementById('m-snap');
@@ -567,9 +564,11 @@ window.uploadGlobal = function(e, type) {
         if(type==='bgm') { 
             if(window.currentBgm) { window.currentBgm.pause(); window.currentBgm = null; }
             window.currentBgm = new Audio(assets.bgm); window.currentBgm.loop = true; 
+            /* Auto-play unmuted in generator */
             isMuted = false; window.currentBgm.muted = isMuted;
             window.currentBgm.play().catch(err => console.log("Auto-play blocked:", err));
             addObj('mute', 0, 0); 
+            /* Set volume icon to active initially */
             setTimeout(() => document.querySelectorAll('.mute-trigger').forEach(b => b.innerHTML = '<i class="fas fa-volume-up"></i>'), 100);
         }
     };
@@ -751,7 +750,7 @@ function handlePointerDown(el, e) {
     }
 }
 
-/* ★ Center-Scaling Resize Setup */
+/* ★ Perfect Center-Scaling Resize Logic */
 function setupInteract(el) {
     if(el.dataset.locked==='true') return;
     
@@ -811,41 +810,67 @@ function setupInteract(el) {
                 let currentW = parseFloat(el.style.width) || el.offsetWidth;
                 let currentH = parseFloat(el.style.height) || el.offsetHeight;
                 
-                let dw = 0, dh = 0;
-                if (e.edges.right) dw = (e.dx / sc);
-                if (e.edges.left) dw = -(e.dx / sc);
-                if (e.edges.bottom) dh = (e.dy / sc);
-                if (e.edges.top) dh = -(e.dy / sc);
+                let dw = (e.dx / sc);
+                let dh = (e.dy / sc);
+                
+                let isRight = e.edges.right;
+                let isLeft = e.edges.left;
+                let isBottom = e.edges.bottom;
+                let isTop = e.edges.top;
 
-                // Multiply by 2 for perfect center scaling without X/Y shift errors
-                let newW = currentW + (dw * 2);
-                let newH = currentH + (dh * 2);
+                let newW = currentW + (isRight ? dw : isLeft ? -dw : 0);
+                let newH = currentH + (isBottom ? dh : isTop ? -dh : 0);
 
                 const type = el.dataset.type;
-                if(['avatar', 'image', 'social', 'mute'].includes(type)) {
-                    let change = Math.abs(dw) > Math.abs(dh) ? dw : dh;
-                    if (currentW + change * 2 > 20) {
-                        newW = currentW + change * 2;
+                let isSquare = ['avatar', 'image', 'social', 'mute'].includes(type);
+
+                if(isSquare) {
+                    let changeW = newW - currentW;
+                    let changeH = newH - currentH;
+                    let change = Math.abs(changeW) > Math.abs(changeH) ? changeW : changeH;
+                    if (currentW + change > 20) {
+                        newW = currentW + change;
                         newH = newW;
                     } else {
                         newW = 20; newH = 20;
                     }
-                }
-
-                if (window.isSnapEnabled) {
-                    newW = Math.max(20, Math.round(newW / 20) * 20);
-                    newH = Math.max(20, Math.round(newH / 20) * 20);
                 } else {
                     newW = Math.max(20, newW);
                     newH = Math.max(20, newH);
                 }
 
+                if (window.isSnapEnabled) {
+                    newW = Math.max(20, Math.round(newW / 20) * 20);
+                    newH = Math.max(20, Math.round(newH / 20) * 20);
+                    if(isSquare) {
+                        let size = Math.max(newW, newH);
+                        newW = size;
+                        newH = size;
+                    }
+                }
+
+                let appliedDw = newW - currentW;
+                let appliedDh = newH - currentH;
+
+                let shiftX = 0, shiftY = 0;
+                if (isRight) shiftX = appliedDw / 2;
+                else if (isLeft) shiftX = -appliedDw / 2;
+
+                if (isBottom) shiftY = appliedDh / 2;
+                else if (isTop) shiftY = -appliedDh / 2;
+
+                let x = (parseFloat(el.dataset.x) || 0) + shiftX;
+                let y = (parseFloat(el.dataset.y) || 0) + shiftY;
+
+                el.dataset.x = x; 
+                el.dataset.y = y; 
                 el.style.width = newW + 'px'; 
                 el.style.height = newH + 'px'; 
+                el.style.transform = `translate(calc(-50% + ${x}px), calc(-50% + ${y}px)) rotate(${el.dataset.rot||0}deg)`; 
                 
                 const c = el.querySelector('.content');
                 if(c && ['text', 'typing', 'name', 'userid', 'button', 'clock', 'marquee', 'mute', 'speech'].includes(type)) {
-                    // Smart font scaling without hiding
+                    /* Smart font scaling without hiding */
                     let fs = Math.max(10, Math.min(newH * 0.45, (newW / Math.max(1, (c.innerText||"").length)) * 1.5));
                     c.style.fontSize = fs + 'px';
                     if(activeEl === el) document.getElementById('pe-fs').value = Math.round(fs);
@@ -1010,7 +1035,7 @@ window.toggleMuteGlobal = function(e) {
 
 window.buildAndDownloadZIP = async function() {
     if(exportCooldown)return; exportCooldown=true;
-    const btn=document.querySelector('#tab-io .btn-primary'), originalText = btn.innerHTML; btn.innerHTML="<i class='fas fa-spinner fa-spin'></i> ZIP生成中...";
+    const btn=document.querySelector('#tab-io .btn-primary'), originalText = btn.innerHTML; btn.innerHTML="<i class='fas fa-spinner fa-spin'></i> ZIP形式で書き出し中...";
     
     setTimeout(async ()=>{
         const zip=new JSZip(), root = zip.folder("Mysite_Maker"), imgF = root.folder("Media");
@@ -1045,10 +1070,18 @@ window.buildAndDownloadZIP = async function() {
         });
         const customCss = document.getElementById('custom-css-input').value;
 
-        const html=`<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>My Space</title><script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/js/all.min.js"><\/script><style>@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono&family=Noto+Sans+JP:wght@400;700&family=Oswald&family=Dancing+Script&family=DotGothic16&family=Playfair+Display&display=swap');body,html{margin:0;padding:0;height:100%;font-family:${font};background-color:${bgColor};color:#fff;overflow:hidden;}#cw{width:100vw;height:100vh;display:flex;align-items:center;justify-content:center;background-image:${bgC};background-size:cover;background-position:center;background-attachment:fixed;background-repeat:no-repeat;position:relative;margin:0;}#vw{width:${baseW}px;height:${baseH}px;position:relative;overflow:hidden;}#eff{position:absolute;inset:0;z-index:2;pointer-events:none;width:100%;height:100%;}.element-inner{z-index:10;position:absolute;width:100%;height:100%;}.content,.content-wrap{width:100%;height:100%;box-sizing:border-box;overflow:visible;}button{border:none;font-weight:bold;cursor:pointer;}
+        const html=`<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>My Space</title><script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/js/all.min.js"><\/script><style>@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono&family=Noto+Sans+JP:wght@400;700&family=Oswald&family=Dancing+Script&family=DotGothic16&family=Playfair+Display&display=swap');
+        body,html{margin:0;padding:0;width:100%;height:100%;font-family:${font};background-color:${bgColor};color:#fff;overflow-x:hidden;overflow-y:auto;}
+        body::before { content: ""; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-image:${bgC}; background-size: cover; background-position: center; background-repeat: no-repeat; z-index: -2; }
+        #cw{width:100%;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;position:relative;margin:0;padding:40px 0;box-sizing:border-box;}
+        #vw{width:${baseW}px;height:${baseH}px;position:relative;transform-origin:top center;flex-shrink:0;}
+        #eff{position:absolute;inset:0;z-index:2;pointer-events:none;width:100%;height:100%;}
+        .element-inner{z-index:10;position:absolute;width:100%;height:100%;}
+        .content,.content-wrap{width:100%;height:100%;box-sizing:border-box;overflow:visible;}
+        button{border:none;font-weight:bold;cursor:pointer;}
         .project-header{width: 100%; display: flex; justify-content: space-between; align-items: center; font-size: 15px; font-weight: 700; cursor: pointer; padding: 12px 18px; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 14px; user-select: none; transition: 0.3s; box-sizing:border-box;}.project-header:hover{background: rgba(255, 255, 255, 0.08);}.project-header.open::after{transform: rotate(180deg);}.project-header::after{content: "▼"; font-size: 10px; transition: 0.3s; opacity: 0.5; display:inline-block;}.project-content{width: 100%; max-height: 0; overflow: hidden; transition: max-height 0.6s cubic-bezier(0.4, 0, 0.2, 1);}.project-content.show{max-height: 1000px;}.project-list{display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 15px 0;}.project-btn{background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 18px 10px; color: #fff; text-decoration: none; font-size: 11px; font-weight: 600; display: flex; justify-content: center; align-items: center; min-height: 60px; transition: 0.3s; text-align: center; cursor: pointer; opacity: 0; transform: translateY(10px);}.project-btn.loaded{opacity: 1; transform: translateY(0);}
         .speech-tail { position:absolute; border-style:solid; } .speech-tail-bottom { bottom:-10px; left:50%; transform:translateX(-50%); border-width:10px 10px 0; border-color:var(--speech-color, rgba(255,255,255,0.1)) transparent transparent transparent; } .speech-tail-top { top:-10px; left:50%; transform:translateX(-50%); border-width:0 10px 10px; border-color:transparent transparent var(--speech-color, rgba(255,255,255,0.1)) transparent; } .speech-tail-left { left:-10px; top:50%; transform:translateY(-50%); border-width:10px 10px 10px 0; border-color:transparent var(--speech-color, rgba(255,255,255,0.1)) transparent transparent; } .speech-tail-right { right:-10px; top:50%; transform:translateY(-50%); border-width:10px 0 10px 10px; border-color:transparent transparent transparent var(--speech-color, rgba(255,255,255,0.1)); }
-        @keyframes fadeIn{from{opacity:0;transform:translateY(20px);}to{opacity:1;transform:translateY(0);}}@keyframes bounce{0%,20%,50%,80%,100%{transform:translateY(0);}40%{transform:translateY(-20px);}60%{transform:translateY(-10px);}}@keyframes pulse{0%{transform:scale(1);}50%{transform:scale(1.05);}100%{transform:scale(1);}}@keyframes shake{0%{transform:translate(1px,1px) rotate(0deg);}10%{transform:translate(-1px,-2px) rotate(-1deg);}20%{transform:translate(-3px,0px) rotate(1deg);}30%{transform:translate(3px,2px) rotate(0deg);}40%{transform:translate(1px,-1px) rotate(1deg);}50%{transform:translate(-1px,2px) rotate(-1deg);}60%{transform:translate(-3px,1px) rotate(0deg);}70%{transform:translate(3px,1px) rotate(-1deg);}80%{transform:translate(-1px,-1px) rotate(1deg);}90%{transform:translate(1px,2px) rotate(0deg);}100%{transform:translate(1px,-2px) rotate(-1deg);}}@keyframes float{0%{transform:translateY(0px);}50%{transform:translateY(-10px);}100%{transform:translateY(0px);}}.anim-fadeIn{animation:fadeIn 0.8s ease forwards;}.anim-bounce{animation:bounce 1.2s infinite;}.anim-pulse{animation:pulse 2s infinite;}.anim-shake{animation:shake 0.5s infinite;}.anim-float{animation:float 3s ease-in-out infinite;}.rainbow-text{background:linear-gradient(90deg,red,yellow,lime,aqua,blue,magenta,red);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-size:200% auto;animation:rainbow 3s linear infinite;}@keyframes rainbow{to{background-position:200% center;}}.cursor{display:inline-block;width:0.5em;height:1em;background:currentColor;margin-left:2px;animation:blink 0.8s infinite;vertical-align:text-bottom;}@keyframes blink{50%{opacity:0;}}\n${customCss}</style></head><body><div id="cw"><div id="vw"><canvas id="eff"></canvas>${elsH}</div></div>${bgmH}<script>const vw=document.getElementById('vw'), effCanvas=document.getElementById('eff');function rs(){const w=window.innerWidth, h=window.innerHeight, s=Math.min(w/${baseW}, h/${baseH}); vw.style.transform=\`scale(\${s})\`; effCanvas.width=${baseW}; effCanvas.height=${baseH};}window.addEventListener('resize',rs);rs();const ctx=effCanvas.getContext('2d');let pts=[];if('${eff}'!=='none'){for(let i=0;i<100;i++)pts.push({x:Math.random()*${baseW},y:Math.random()*${baseH},s:'${eff}'==='stars'?Math.random()*1.5+0.5:Math.random()*3+1,v:'${eff}'==='rain'?Math.random()*15+10:('${eff}'==='stars'?0.1:Math.random()*2+1),l:'${eff}'==='rain'?Math.random()*10+10:0,o:Math.random()*100});function an(){ctx.clearRect(0,0,${baseW},${baseH});ctx.fillStyle='#fff';ctx.strokeStyle='rgba(255,255,255,0.6)';ctx.lineWidth=1.5;pts.forEach(p=>{if('${eff}'==='rain'){ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(p.x,p.y+p.l);ctx.stroke();p.y+=p.v;if(p.y>${baseH})p.y=-p.l;}else if('${eff}'==='stars'){ctx.beginPath();ctx.globalAlpha=Math.abs(Math.sin(Date.now()*0.002+p.o));ctx.arc(p.x,p.y,p.s,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;p.y-=p.v;if(p.y<0)p.y=${baseH};}else{ctx.beginPath();ctx.arc(p.x,p.y,p.s,0,Math.PI*2);ctx.fill();p.y+=p.v;p.x+=Math.sin(p.y*0.05)*1;if(p.y>${baseH})p.y=-10;}});requestAnimationFrame(an);}an();}document.querySelectorAll('.element-wrapper').forEach(el=>{const d=parseFloat(el.dataset.delay)||0;if(d>0)setTimeout(()=>{el.style.opacity='1';},d*1000);});document.querySelectorAll('[id^="t_"]').forEach(e=>{const txt=e.dataset.txt.replace(/\\\\n/g,'\\n');let i=0;const loop=e.dataset.loop==='true';function t(){if(i<txt.length){e.innerHTML=txt.substring(0,i+1)+'<span class="cursor"></span>';i++;setTimeout(t,parseInt(e.dataset.spd));}else{if(loop){setTimeout(()=>{i=0;t();},3000);}}}t();});document.querySelectorAll('.mute-trigger').forEach(b=>b.onclick=()=>{const a=document.getElementById('bgm-audio');if(a){a.muted=!a.muted;b.innerHTML=a.muted?'<i class="fas fa-volume-mute"></i>':'<i class="fas fa-volume-up"></i>';if(!a.muted)a.play().catch(()=>{});else a.pause();}});setInterval(()=>{document.querySelectorAll('[data-type="clock"] .content').forEach(c=>{const d=new Date();c.innerText=\`\${String(d.getHours()).padStart(2,'0')}:\${String(d.getMinutes()).padStart(2,'0')}:\${String(d.getSeconds()).padStart(2,'0')}\`;});},1000);document.querySelectorAll('.project-header').forEach(h=>{let loaded=false;h.onclick=()=>{h.classList.toggle('open');h.nextElementSibling.classList.toggle('show');if(!loaded){Array.from(h.nextElementSibling.querySelectorAll('.project-btn')).forEach((b,i)=>setTimeout(()=>b.classList.add('loaded'),i*100));loaded=true;}}});if('${id}'){async function f(){try{const r=await fetch('https://api.lanyard.rest/v1/users/${id}'),d=await r.json();if(d.success){const u=d.data;document.querySelectorAll('.dc-name').forEach(n=>n.innerText=u.listening_to_spotify?"Spotify":(u.activities.length>0?u.activities[0].name:u.discord_user.display_name||u.discord_user.username));document.querySelectorAll('.dc-status').forEach(s=>s.innerText=u.listening_to_spotify?u.spotify.song:(u.activities.length>0?(u.activities[0].details||"Playing"):u.discord_status.toUpperCase()));document.querySelectorAll('.dc-img').forEach(i=>{if(u.listening_to_spotify)i.src=u.spotify.album_art_url;else if(u.activities.length>0&&u.activities[0].assets&&u.activities[0].assets.large_image)i.src=u.activities[0].assets.large_image.startsWith('mp:external')?u.activities[0].assets.large_image.replace(/mp:external\\/.*?\\/(https?)\\//,'$1://'):\`https://cdn.discordapp.com/app-assets/\${u.activities[0].application_id}/\${u.activities[0].assets.large_image}.png\`;else i.src="https://cdn.simpleicons.org/discord/white";});}}catch(e){}}f();setInterval(f,30000);}<\/script></body></html>`;
+        @keyframes fadeIn{from{opacity:0;transform:translateY(20px);}to{opacity:1;transform:translateY(0);}}@keyframes bounce{0%,20%,50%,80%,100%{transform:translateY(0);}40%{transform:translateY(-20px);}60%{transform:translateY(-10px);}}@keyframes pulse{0%{transform:scale(1);}50%{transform:scale(1.05);}100%{transform:scale(1);}}@keyframes shake{0%{transform:translate(1px,1px) rotate(0deg);}10%{transform:translate(-1px,-2px) rotate(-1deg);}20%{transform:translate(-3px,0px) rotate(1deg);}30%{transform:translate(3px,2px) rotate(0deg);}40%{transform:translate(1px,-1px) rotate(1deg);}50%{transform:translate(-1px,2px) rotate(-1deg);}60%{transform:translate(-3px,1px) rotate(0deg);}70%{transform:translate(3px,1px) rotate(-1deg);}80%{transform:translate(-1px,-1px) rotate(1deg);}90%{transform:translate(1px,2px) rotate(0deg);}100%{transform:translate(1px,-2px) rotate(-1deg);}}@keyframes float{0%{transform:translateY(0px);}50%{transform:translateY(-10px);}100%{transform:translateY(0px);}}.anim-fadeIn{animation:fadeIn 0.8s ease forwards;}.anim-bounce{animation:bounce 1.2s infinite;}.anim-pulse{animation:pulse 2s infinite;}.anim-shake{animation:shake 0.5s infinite;}.anim-float{animation:float 3s ease-in-out infinite;}.rainbow-text{background:linear-gradient(90deg,red,yellow,lime,aqua,blue,magenta,red);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-size:200% auto;animation:rainbow 3s linear infinite;}@keyframes rainbow{to{background-position:200% center;}}.cursor{display:inline-block;width:0.5em;height:1em;background:currentColor;margin-left:2px;animation:blink 0.8s infinite;vertical-align:text-bottom;}@keyframes blink{50%{opacity:0;}}\n${customCss}</style></head><body><div id="cw"><div id="vw"><canvas id="eff"></canvas>${elsH}</div></div>${bgmH}<script>const vw=document.getElementById('vw'), effCanvas=document.getElementById('eff');function rs(){const w=window.innerWidth; let s = w < ${baseW} ? (w - 20) / ${baseW} : 1; vw.style.transform=\`scale(\${s})\`; vw.style.marginBottom = (${baseH} * (s - 1)) + "px"; effCanvas.width=${baseW}; effCanvas.height=${baseH};}window.addEventListener('resize',rs);rs();const ctx=effCanvas.getContext('2d');let pts=[];if('${eff}'!=='none'){for(let i=0;i<100;i++)pts.push({x:Math.random()*${baseW},y:Math.random()*${baseH},s:'${eff}'==='stars'?Math.random()*1.5+0.5:Math.random()*3+1,v:'${eff}'==='rain'?Math.random()*15+10:('${eff}'==='stars'?0.1:Math.random()*2+1),l:'${eff}'==='rain'?Math.random()*10+10:0,o:Math.random()*100});function an(){ctx.clearRect(0,0,${baseW},${baseH});ctx.fillStyle='#fff';ctx.strokeStyle='rgba(255,255,255,0.6)';ctx.lineWidth=1.5;pts.forEach(p=>{if('${eff}'==='rain'){ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(p.x,p.y+p.l);ctx.stroke();p.y+=p.v;if(p.y>${baseH})p.y=-p.l;}else if('${eff}'==='stars'){ctx.beginPath();ctx.globalAlpha=Math.abs(Math.sin(Date.now()*0.002+p.o));ctx.arc(p.x,p.y,p.s,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;p.y-=p.v;if(p.y<0)p.y=${baseH};}else{ctx.beginPath();ctx.arc(p.x,p.y,p.s,0,Math.PI*2);ctx.fill();p.y+=p.v;p.x+=Math.sin(p.y*0.05)*1;if(p.y>${baseH})p.y=-10;}});requestAnimationFrame(an);}an();}document.querySelectorAll('.element-wrapper').forEach(el=>{const d=parseFloat(el.dataset.delay)||0;if(d>0)setTimeout(()=>{el.style.opacity='1';},d*1000);});document.querySelectorAll('[id^="t_"]').forEach(e=>{const txt=e.dataset.txt.replace(/\\\\n/g,'\\n');let i=0;const loop=e.dataset.loop==='true';function t(){if(i<txt.length){e.innerHTML=txt.substring(0,i+1)+'<span class="cursor"></span>';i++;setTimeout(t,parseInt(e.dataset.spd));}else{if(loop){setTimeout(()=>{i=0;t();},3000);}}}t();});document.querySelectorAll('.mute-trigger').forEach(b=>b.onclick=()=>{const a=document.getElementById('bgm-audio');if(a){a.muted=!a.muted;b.innerHTML=a.muted?'<i class="fas fa-volume-mute"></i>':'<i class="fas fa-volume-up"></i>';if(!a.muted)a.play().catch(()=>{});else a.pause();}});setInterval(()=>{document.querySelectorAll('[data-type="clock"] .content').forEach(c=>{const d=new Date();c.innerText=\`\${String(d.getHours()).padStart(2,'0')}:\${String(d.getMinutes()).padStart(2,'0')}:\${String(d.getSeconds()).padStart(2,'0')}\`;});},1000);document.querySelectorAll('.project-header').forEach(h=>{let loaded=false;h.onclick=()=>{h.classList.toggle('open');h.nextElementSibling.classList.toggle('show');if(!loaded){Array.from(h.nextElementSibling.querySelectorAll('.project-btn')).forEach((b,i)=>setTimeout(()=>b.classList.add('loaded'),i*100));loaded=true;}}});if('${id}'){async function f(){try{const r=await fetch('https://api.lanyard.rest/v1/users/${id}'),d=await r.json();if(d.success){const u=d.data;document.querySelectorAll('.dc-name').forEach(n=>n.innerText=u.listening_to_spotify?"Spotify":(u.activities.length>0?u.activities[0].name:u.discord_user.display_name||u.discord_user.username));document.querySelectorAll('.dc-status').forEach(s=>s.innerText=u.listening_to_spotify?u.spotify.song:(u.activities.length>0?(u.activities[0].details||"Playing"):u.discord_status.toUpperCase()));document.querySelectorAll('.dc-img').forEach(i=>{if(u.listening_to_spotify)i.src=u.spotify.album_art_url;else if(u.activities.length>0&&u.activities[0].assets&&u.activities[0].assets.large_image)i.src=u.activities[0].assets.large_image.startsWith('mp:external')?u.activities[0].assets.large_image.replace(/mp:external\\/.*?\\/(https?)\\//,'$1://'):\`https://cdn.discordapp.com/app-assets/\${u.activities[0].application_id}/\${u.activities[0].assets.large_image}.png\`;else i.src="https://cdn.simpleicons.org/discord/white";});}}catch(e){}}f();setInterval(f,30000);}<\/script></body></html>`;
         root.file("index.html", html);
         const blob=await zip.generateAsync({type:"blob"}), a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download="Mysite_Maker.zip"; a.click();
         btn.innerHTML = originalText; setTimeout(() => { exportCooldown = false; }, 3000);
